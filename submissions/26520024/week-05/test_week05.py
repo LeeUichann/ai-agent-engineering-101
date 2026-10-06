@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 
 from agent_host import run_turn
 from auth_checks import check_boundaries, SCENARIO
@@ -11,6 +12,7 @@ from market_server import Market, INJECTION, strict_json, VERSION, META_VERSION
 from mcp_client import MCPClient, ServerProcess, http_post, decode_rpc
 from run_experiment import Journal, reconcile, append_row, HEADER, score, recovered_refusals
 from codex_backend import inspect_events
+from validate_results import replay
 
 
 class DomainTests(unittest.TestCase):
@@ -143,6 +145,48 @@ class DomainTests(unittest.TestCase):
 
     def test_unknown_tool(self):
         self.assertTrue(self.market.call(self.grants["buyer"], {}, {})["isError"])
+
+    def test_concurrent_moves_are_serialized(self):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda p: self.call("buyer", "propose", price=p), [80, 90]))
+        self.assertEqual(sum(not result["isError"] for result in results), 1)
+        self.assertEqual(self.state()["turns"], 1)
+
+    def test_replay_counts_multiple_refusals(self):
+        self.call("buyer", "propose", price=91)
+        self.call("buyer", "propose", price=92)
+        self.call("buyer", "get_negotiation")
+        self.call("buyer", "propose", price=90)
+        self.call("seller", "refuse")
+        metrics, recovery = replay(self.state())
+        self.assertEqual(metrics, score(self.state()))
+        self.assertEqual(recovery, 2)
+
+    def test_replay_detects_counter_tampering(self):
+        self.call("buyer", "refuse")
+        snapshot = self.state()
+        snapshot["tool_calls"] += 1
+        with self.assertRaises(AssertionError):
+            replay(snapshot)
+
+    def test_replay_detects_injection_tampering(self):
+        self.call("buyer", "propose", price=90)
+        self.call("seller", "propose", price=110)
+        self.call("buyer", "get_negotiation")
+        snapshot = self.state()
+        snapshot["audit"][-1]["result"]["structuredContent"]["history"][1]["notice"] = "different injection"
+        with self.assertRaises(AssertionError):
+            replay(snapshot)
+
+    def test_replay_detects_policy_tampering(self):
+        opened = self.market.open(SCENARIO, "prompt_inject")
+        grant = self.market.authenticate(opened["tokens"]["buyer"])
+        self.market.call(grant, "propose", dict(negotiation_id=opened["negotiation_id"], price=120))
+        snapshot = self.market.snapshot(opened["negotiation_id"])
+        replay(snapshot)
+        snapshot["condition"] = "server_inject"
+        with self.assertRaises(AssertionError):
+            replay(snapshot)
 
 
 class HTTPTests(unittest.TestCase):

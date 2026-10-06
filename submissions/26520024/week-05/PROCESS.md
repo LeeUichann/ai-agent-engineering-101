@@ -17,3 +17,12 @@
   instead of prompts['roles'][role], and one role-spoofing test collided with its
   helper's role argument. Also closed two CSV handles after ResourceWarnings.
   Corrected these before live calls; the next run passed all 31 tests.
+- Froze execution code at e74d8ab. Confirmed ChatGPT authentication with CLI
+  login status, without reading authentication files. Four actual loopback HTTP
+  boundary checks passed and were saved in auth_checks.txt separately from runs.
+- Started the 24-episode batch on 2026-10-06 in base, Python 3.8.19. The host
+  discovers tools over MCP and executes model choices; no native CLI tool acts.
+- While the frozen batch runs, added an independent evidence replay validator,
+  concurrency and tamper-detection tests, and Korean reproducibility notes.
+  All 36 offline tests passed (logs/offline-tests-01.txt). Execution code and
+  prompts were not changed in response to early results.
