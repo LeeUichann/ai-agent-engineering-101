@@ -1,11 +1,11 @@
 """Replay retained evidence independently of the live Market and scoring code."""
 from collections import Counter, defaultdict
+import argparse
 import csv
 import hashlib
 import json
 from pathlib import Path
 import re
-import sys
 
 ROOT = Path(__file__).resolve().parent
 MOVES = {"propose", "accept_proposal", "reject_proposal", "refuse"}
@@ -110,7 +110,7 @@ def replay(snapshot):
     return metrics, sum(refused_slots[s] for s in success_slots)
 
 
-def validate(root):
+def validate(root, partial=False):
     with (root / "results.csv").open(newline="", encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream))
     episodes = defaultdict(list)
@@ -118,8 +118,13 @@ def validate(root):
         for number, line in enumerate(path.read_text().splitlines(), 1):
             event = json.loads(line)
             episodes[(event["run"], event["condition"], event["scenario"])].append((event, path.name, number))
-    require(len(rows) == len(episodes) == 24, "Expected exactly 24 recorded episodes")
-    require(len({(r["run"], r["condition"], r["scenario"]) for r in rows}) == 24, "duplicate result key")
+    if not partial:
+        require(len(rows) == len(episodes) == 24, "Expected exactly 24 recorded episodes")
+        expected = {(condition, scenario["id"]): 3 for condition in ("prompt_inject", "server_inject")
+                    for scenario in json.loads((ROOT / "scenarios.json").read_text())}
+        require(Counter((row["condition"], row["scenario"]) for row in rows) == expected,
+                "Expected three repeats of each frozen scenario in both required conditions")
+    require(len({(r["run"], r["condition"], r["scenario"]) for r in rows}) == len(rows), "duplicate result key")
     totals = defaultdict(Counter)
     prompt_sets = defaultdict(set)
     for row in rows:
@@ -139,9 +144,13 @@ def validate(root):
             totals[row["condition"]]["crashes"] += 1
             continue
         snapshot = [e["snapshot"] for e in events if e["event"] == "server_snapshot"][-1]
+        scenario = next(s for s in json.loads((ROOT / "scenarios.json").read_text()) if s["id"] == row["scenario"])
+        require(snapshot["scenario"] == scenario and snapshot["condition"] == row["condition"],
+                "server scenario/condition differs from frozen experiment")
         metrics, recovery = replay(snapshot)
         require({k: str(v) for k, v in metrics.items()} == {k: row[k] for k in metrics}, "CSV differs from replay")
         note = json.loads(row["note"])
+        require(note["host"] == "week05-python-mcp-host" and note["model"] == "gpt-6-astra", "missing host/model provenance")
         require(note["recovered_refusals"] == recovery and note["passed_turns"] == snapshot["passed_turns"], "recovery/pass mismatch")
         pending, calls, responses, raw_outputs = None, [], [], {}
         last_action, last_response, model_calls = None, None, {}
@@ -201,13 +210,18 @@ def validate(root):
         if path.is_file() and path.suffix not in (".pyc",) and "__pycache__" not in path.parts:
             text = path.read_text(encoding="utf-8", errors="ignore")
             require(not re.search(r'Bearer [A-Za-z0-9_-]{32,}', text), "bearer token in artifact: " + str(path))
-            prefixes = ("sk" + "-proj-", "ghp_", "github_pat_")
+            prefixes = ("".join(("sk", "-proj-")), "ghp_", "github_pat_")
             require(not re.search("(?:" + "|".join(prefixes) + r")[A-Za-z0-9_]{16,}", text),
                     "credential marker in artifact: " + str(path))
     print(json.dumps(totals, indent=2, sort_keys=True))
-    print("Validated 24 episodes, frozen inputs, identical prompts, raw model usage, HTTP calls, server audit and CSV.")
+    print("Validated {} recorded episodes, frozen inputs, identical prompts, raw model usage, HTTP calls, server audit and CSV.{}".format(
+        len(rows), " PARTIAL CHECK ONLY." if partial else ""))
     return totals
 
 
 if __name__ == "__main__":
-    validate(Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("directory", type=Path, nargs="?", default=ROOT)
+    parser.add_argument("--partial", action="store_true", help="Check recorded rows during a live batch; not a submission check")
+    args = parser.parse_args()
+    validate(args.directory.resolve(), partial=args.partial)

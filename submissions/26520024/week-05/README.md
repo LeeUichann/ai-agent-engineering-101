@@ -13,6 +13,9 @@
 - CLI의 temperature/max output tokens/seed는 설정하지 않았으며 내부 값은 모른다.
 - Codex CLI는 도구 없는 모델 응답 생성기다. **네이티브 Codex MCP 연결이 아니라
   별도 Python MCP 호스트**가 bearer token을 보관하고 요청을 실행한다.
+- 역할 지시와 대화 이력은 CLI 입력 JSON의 `system`/`history` 필드 및 공통
+  래퍼 지시로 전달한다. OpenAI API의 네이티브 system role을 직접 설정한 것은
+  아니다. 두 조건은 이 전달 방식까지 동일하다.
 - 서버는 별도 프로세스, `127.0.0.1` 임의 포트. 외부 공개하지 않는다.
 
 ## 재현 명령
