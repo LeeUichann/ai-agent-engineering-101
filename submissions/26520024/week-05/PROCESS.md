@@ -13,3 +13,7 @@
   week-02/ARCHITECTURE.md and all earlier branches remain untouched.
 - Implementation, tests and report are assisted by Codex. Actual negotiation
   model outputs will be logged independently; no synthetic tests enter results.
+- The first offline run had 3 errors in 31 tests: the host read prompts[role]
+  instead of prompts['roles'][role], and one role-spoofing test collided with its
+  helper's role argument. Also closed two CSV handles after ResourceWarnings.
+  Corrected these before live calls; the next run passed all 31 tests.
