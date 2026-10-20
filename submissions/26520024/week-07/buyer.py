@@ -6,13 +6,13 @@ from core import BUYER_PROMPT, decide, emit, last_price, validate_buyer
 from wire import Wire, receipt, task_text
 
 
-def negotiate(url, item, budget, run_id='single', decision=decide):
+def negotiate(url, item, budget, run_id='single', decision=decide, *, deadline=None, allow_remote=False):
     if type(budget) is not int or budget < 0:
         raise ValueError('Invalid fixed budget')
-    deadline = time.monotonic() + 270
+    deadline = deadline if deadline is not None else time.monotonic() + 270
     context = dict(run_id=run_id, item=item)
     emit('buyer_start', **context, url=url, budget=budget)
-    wire = Wire(url, deadline, context)
+    wire = Wire(url, deadline, context, allow_remote=True) if allow_remote else Wire(url, deadline, context)
     try:
         card = wire.discover()
         task = wire.send('I want to buy a ' + item)
@@ -40,6 +40,7 @@ def negotiate(url, item, budget, run_id='single', decision=decide):
                          memory=memory, recent=recent, seller_name=card['name'])
             action = decision(BUYER_PROMPT, state, lambda a: validate_buyer(a, budget),
                               'buyer', deadline, dict(context, task_id=task_id))
+            validate_buyer(action, budget)
             memory = action['summary']
             emit('buyer_action', **context, task_id=task_id, action=action)
             if action['action'] == 'walk':
