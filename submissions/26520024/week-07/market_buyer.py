@@ -30,17 +30,17 @@ def load_shops(path):
     shops = strict_json(raw)
     if not isinstance(shops, list) or not 1 <= len(shops) <= 100:
         raise ValueError('Expected 1 to 100 shops; refusing silently truncated selection')
-    names, urls = set(), set()
+    names = set()
     for shop in shops:
         if not isinstance(shop, dict) or not isinstance(shop.get('name'), str) or not shop['name'].strip():
             raise ValueError('Invalid shop name')
         if len(shop['name']) > 200 or not isinstance(shop.get('url'), str):
             raise ValueError('Invalid shop identity')
         market_url(shop['url'])
-        if shop['name'] in names or shop['url'] in urls:
-            raise ValueError('Duplicate shop name or URL')
+        if shop['name'] in names:
+            raise ValueError('Duplicate shop name')
         names.add(shop['name'])
-        urls.add(shop['url'])
+        # The registry can contain distinct named shops at the same endpoint.
         reviews = shop.get('reviews', [])
         if not isinstance(reviews, list):
             raise ValueError('Reviews must be a list')

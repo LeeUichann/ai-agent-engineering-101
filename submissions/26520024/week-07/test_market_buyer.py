@@ -125,6 +125,18 @@ class MarketTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_shops(self.path)
 
+    def test_shared_url_does_not_stop_selection(self):
+        self.shops.append(dict(name='Alias', url=self.shops[0]['url'],
+                               reviews=[dict(stars=1, review='Fixture review')]))
+        self.path.write_text(json.dumps(self.shops))
+        loaded, _ = load_shops(self.path)
+        self.assertEqual(len(loaded), 2)
+        final = self.execute(lambda *a, **kw: dict(outcome='walked'))
+        self.assertEqual(final['shop'], self.shops[0]['url'])
+        with TradeMemory(self.memory_path) as memory:
+            self.assertEqual(memory.view('Example', 'lamp')['counts'], {'walked': 1})
+            self.assertEqual(memory.view('Alias', 'lamp')['counts'], {})
+
     def test_bad_reviews_rejected(self):
         self.shops[0]['reviews'] = [dict(stars=True, review='invalid')]
         self.path.write_text(json.dumps(self.shops))
