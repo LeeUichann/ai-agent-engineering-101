@@ -38,6 +38,11 @@ submissions/26520024/week-06/.venv/bin/python submissions/26520024/week-06/verif
 submissions/26520024/week-06/.venv/bin/python scripts/check_week06.py submissions/26520024/week-06
 ```
 
+NAS에서 공식 구조 검사가 무시된 런타임/캐시 디렉터리를 탐색하다 지연될 경우,
+`python submissions/26520024/week-06/check_submission.py`를 사용할 수 있다.
+생성된 환경·캐시만 제외한 동일 바이트의 제출 파일을 임시 폴더로 복사하고,
+**수정하지 않은 같은 공식 검사기**를 실행한다. 파일별 SHA-256도 출력한다.
+
 **주의:** 공식 거래 테스트는 `test-report.json`과 공식 로그를 덮어쓴다.
 재실행 전 기존 파일들을 별도 디렉터리에 원본 그대로 보관해야 한다.
 도전 실행기는 매번 UTC 시간 기반의 새 디렉터리를 생성하며 기존 기록을 덮어쓰지 않는다.
