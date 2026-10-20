@@ -48,8 +48,9 @@ Preserve previous submissions and the staged week-02 ARCHITECTURE.md.
 ## Evidence and environment
 
 - Current base is Python 3.8.19 with no A2A SDK; SDK 1.2.0 requires Python >=3.10.
-  Do not alter any conda environment. A project-local isolated Python runtime is
-  the proposed solution; user clarification requested before environment setup.
+  Do not alter any conda environment. User subsequently selected eraseanything
+  (Python 3.10.22); its interpreter backs the project-local .venv. Only that
+  isolated .venv receives the required packages.
 - Source of truth: ../../../weeks/week-06/README.md and unmodified current
   ../../../scripts/trade_test_week06.py. Never replace its SDK or test with a shim.
 - Run the official trade test, preserve a complete archive before any rerun, and
