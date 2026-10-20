@@ -92,6 +92,8 @@ class Policy(unittest.TestCase):
 
     def test_opening_price_ceiling(self):
         self.assertEqual([opening_ceiling(v) for v in (100, 180, 260)], [110, 198, 286])
+        self.assertEqual(opening_ceiling(101), 111)
+        self.assertLessEqual(10 * opening_ceiling(101), 11 * 101)
         validate_market_seller(self.action('ask', 110), [self.product], None, None, None)
         with self.assertRaises(ValueError):
             validate_market_seller(self.action('ask', 125), [self.product], None, None, None)

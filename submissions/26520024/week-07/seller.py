@@ -19,6 +19,7 @@ from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 
 from core import Catalog, SELLER_PROMPT, decide, emit, last_price, validate_seller
+from rps_promotion import new_promotion, parse_move, is_game_request, resolve, invitation
 
 ROOT = Path(__file__).resolve().parent
 RECEIPT_FIELDS = ('shop', 'item', 'price', 'task')
@@ -31,6 +32,8 @@ If the first counteroffer is below reserve, promptly quote the reserve as your f
 If the buyer remains below that clearly stated minimum, reject courteously; do not pretend a deal occurred.
 Never change a reserve, add fees, promise an impossible discount, request a favorable review,
 condition a price on a review, or discuss attacking another shop. Your receipt must match the accepted offer.
+The optional RPS promotion is handled by code before your decision. Honor its current asking price.
+Never invent game outcomes, rerolls, or an additional discount below reserve. Participation is never required.
 The harness renders your action, not your summary, to the buyer. Do not claim explanations were sent
 unless the supplied recent messages actually contain them.'''
 
@@ -62,7 +65,7 @@ def sign_receipt(receipt, key_path=ROOT / 'shop_key.pem', *, key=None):
 
 
 def opening_ceiling(reserve):
-    return (reserve * 110 + 99) // 100
+    return reserve * 110 // 100
 
 
 def validate_market_seller(action, candidates, selected, offer, previous_ask):
@@ -108,6 +111,28 @@ class Seller(AgentExecutor):
             if previous and previous['closed']:
                 raise RuntimeError('Task already closed')
             text = get_message_text(context.message) or ''
+            if previous and is_game_request(text):
+                promotion = previous.get('promotion')
+                move = parse_move(text)
+                if promotion is None:
+                    reply = 'No discount game is available on this quote.'
+                elif promotion['used']:
+                    reply = 'This task already used its optional game. Proof: ' + json.dumps(promotion['result'], sort_keys=True)
+                elif move is None:
+                    reply = 'Optional game syntax: RPS rock, RPS paper, or RPS scissors. Numeric negotiation is also available.'
+                else:
+                    updated, result = resolve(promotion, move, previous['ask'])
+                    previous['promotion'] = dict(updated, result=result)
+                    previous['ask'] = result['price']
+                    reply = 'Optional game result (buyer perspective): {}. Proof: {}.'.format(
+                        result['outcome'], json.dumps(result, sort_keys=True))
+                    previous['memory'] = ('Optional game completed; current quote is %s. No purchase confirmed.' % previous['ask'])
+                    emit('seller_promotion_played', task_id=task.id, shop=self.name, result=result)
+                reply += ' No purchase is made by playing; send a numeric offer to continue. Current asking {}'.format(previous['ask'])
+                previous['recent'] = (previous['recent'] + [dict(buyer=text[:500], action='promotion',
+                                                               price=previous['ask'], sent_text=reply)])[-2:]
+                await up.requires_input(say(reply))
+                return
             selected = previous['item_id'] if previous else None
             candidates = [self.catalog.items[selected]] if selected else self.catalog.search(text)
             offer = last_price(text) if selected else None
@@ -135,13 +160,21 @@ class Seller(AgentExecutor):
                                                        price=action['price'], task=task.id), key=self.signing_key)
             except Exception as exc:
                 emit('seller_error', task_id=task.id, error=str(exc), kind=type(exc).__name__)
-                await up.fail(say('Decision service failed; no purchase was made.'))
+                await up.failed(say('Unable to issue a valid purchase; no receipt was issued.'))
                 self.states[task.id] = dict(closed=True)
                 return
             reply = None
+            promotion = previous.get('promotion') if previous else None
             if action['action'] == 'ask':
-                reply = ask_message(self.catalog.items[action['item_id']], action['price'])
+                product = self.catalog.items[action['item_id']]
+                reply = ask_message(product, action['price'])
+                if previous is None and action['price'] > product['reserve']:
+                    promotion = new_promotion(task.id, product['reserve'])
+                    reply += ' ' + invitation(promotion) + ' Current asking {}'.format(action['price'])
+                    emit('seller_promotion_offered', task_id=task.id, shop=self.name,
+                         commitment=promotion['commitment'], current_ask=action['price'])
             record = dict(item_id=action['item_id'], ask=action['price'],
+                          promotion=promotion,
                           rounds=state['rounds'] + 1, memory=action['summary'],
                           recent=(state['recent'] + [dict(buyer=text[:500], action=action['action'],
                                                        price=action['price'], sent_text=reply)])[-2:],
@@ -174,6 +207,8 @@ def build(port, shop_id=None, decision=decide, signing_key=None):
     tags = ['shopping', 'negotiation']
     skill = ('Describe an item, then exchange integer offers in credits. '
              'Standard opening-price caps: lamp 110, chair 198, bookshelf 286. '
+             'An optional RPS rock/paper/scissors message after selection can discount a quote to its minimum. '
+             'Losing or drawing never raises the quote; numeric negotiation does not require a game. '
              'A signed receipt records exactly the agreed price; no added fees.')
     if shop_id:
         shop = next(p for p in json.loads((ROOT / 'shops.json').read_text()) if p['id'] == shop_id)
@@ -184,7 +219,7 @@ def build(port, shop_id=None, decision=decide, signing_key=None):
         name, description, skill = shop['name'], shop['description'], shop['description']
         tags.append(shop['category'])
     url = 'http://127.0.0.1:{}/'.format(port)
-    card = AgentCard(name=name, description=description, version='1.1.0',
+    card = AgentCard(name=name, description=description, version='1.2.0',
                      default_input_modes=['text/plain'], default_output_modes=['application/json', 'text/plain'],
                      capabilities=AgentCapabilities(streaming=False),
                      supported_interfaces=[AgentInterface(protocol_binding='JSONRPC', url=url, protocol_version='1.0')],
