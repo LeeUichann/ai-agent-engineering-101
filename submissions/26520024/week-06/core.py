@@ -39,7 +39,8 @@ class Catalog:
         for item in items:
             if type(item['reserve']) is not int or item['reserve'] < 0:
                 raise ValueError('invalid reserve')
-        self.db = sqlite3.connect(':memory:')
+        self.lock = threading.Lock()
+        self.db = sqlite3.connect(':memory:', check_same_thread=False)
         self.db.execute('CREATE VIRTUAL TABLE products USING fts5(id UNINDEXED, name, category, description)')
         self.db.executemany('INSERT INTO products VALUES (?, ?, ?, ?)',
                            [(p['id'], p['name'], p['category'], p['description']) for p in items])
@@ -52,8 +53,9 @@ class Catalog:
         if not words:
             return []
         expression = ' OR '.join('"{}"'.format(w) for w in words)
-        rows = self.db.execute('SELECT id FROM products WHERE products MATCH ? ORDER BY bm25(products,0,8,3,1), id LIMIT ?',
-                               (expression, limit)).fetchall()
+        with self.lock:
+            rows = self.db.execute('SELECT id FROM products WHERE products MATCH ? ORDER BY bm25(products,0,8,3,1), id LIMIT ?',
+                                   (expression, limit)).fetchall()
         return [dict(self.items[row[0]]) for row in rows]
 
 
