@@ -98,18 +98,20 @@ class Protocol(unittest.TestCase):
     def test_sdk_task_lifecycle(self):
         from starlette.testclient import TestClient
         from seller import build
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         import uuid
         def scripted(system, state, validator, *args):
             selected = state['item_id']
             return validator(dict(action='ask' if selected is None else 'accept', item_id='lamp',
-                                  price=120 if selected is None else state['incoming_offer'], summary='offline fixture'))
+                                  price=110 if selected is None else state['incoming_offer'], summary='offline fixture'))
         def send(client, text, task_id=None):
             msg = dict(role='ROLE_USER', messageId=uuid.uuid4().hex, parts=[dict(text=text)])
             if task_id:
                 msg['taskId'] = task_id
             return client.post('/', headers={'A2A-Version': '1.0'}, json=dict(jsonrpc='2.0', id=uuid.uuid4().hex,
                         method='SendMessage', params=dict(message=msg))).json()
-        with contextlib.redirect_stdout(io.StringIO()), TestClient(build(9999, decision=scripted)) as client:
+        with contextlib.redirect_stdout(io.StringIO()), TestClient(build(9999, decision=scripted,
+                                                                       signing_key=Ed25519PrivateKey.generate())) as client:
             card = client.get('/.well-known/agent-card.json', headers={'A2A-Version': '1.0'}).json()
             self.assertEqual(card['supportedInterfaces'][0]['protocolVersion'], '1.0')
             first = send(client, 'lamp')['result']['task']

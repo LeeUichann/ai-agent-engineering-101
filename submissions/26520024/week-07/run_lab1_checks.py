@@ -1,5 +1,6 @@
 """Preserve previous evidence and isolate official-test memory from market memory."""
 from datetime import datetime, timezone
+import argparse
 import hashlib
 import json
 import os
@@ -13,8 +14,8 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parents[2]
 
 
-def main():
-    out = ROOT / 'logs' / ('lab1-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
+def main(phase='lab1'):
+    out = ROOT / 'logs' / (phase + '-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
     out.mkdir(parents=True)
     previous = out / 'previous-evidence'
     files = [ROOT / 'test-report.json', ROOT / 'logs/market-test.log', ROOT / 'logs/seller-under-test.log']
@@ -37,7 +38,7 @@ def main():
                 log.flush()
                 print(line, end='', flush=True)
             return proc.wait()
-    print('LAB1_EVIDENCE=' + str(out), flush=True)
+    print(phase.upper() + '_EVIDENCE=' + str(out), flush=True)
     offline = run('offline-tests.log', [sys.executable, '-m', 'unittest', 'discover', '-s', str(ROOT), '-p', 'test_*.py', '-v'])
     if offline:
         return offline
@@ -53,4 +54,6 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--phase', choices=('lab1', 'lab2'), default='lab1')
+    sys.exit(main(parser.parse_args().phase))
