@@ -45,7 +45,7 @@ def completed_receipts(event):
 
 
 def scan(source):
-    orders, incidents, avoidance, registrations = [], [], [], []
+    orders, incidents, avoidance, registrations, uncorrelated = [], [], [], [], []
     sellers, bad_names = {}, set()
     digest, offset, first_promotion = hashlib.sha256(), 0, None
     current, last_state = None, None
@@ -98,6 +98,11 @@ def scan(source):
                 continue
             if current is None:
                 continue
+            if event.get('item') and event['item'] != current['item']:
+                if kind in ('buyer_action', 'http_response'):
+                    uncorrelated.append(dict(line=number, event=kind, event_item=event['item'],
+                                             order_item=current['item'], run_id=event.get('run_id')))
+                continue
             if kind == 'decision_input' and 'shops' in event.get('state', {}):
                 last_state = dict(line=number, state=event['state'], time=event.get('time'))
             if kind == 'market_choice':
@@ -113,11 +118,15 @@ def scan(source):
                             state=last_state['state']))
             if kind == 'buyer_action' and event.get('action', {}).get('action') == 'offer':
                 current['last_offer'] = event['action']['price']
+                current['last_offer_task'] = event.get('task_id')
             if kind == 'buyer_final':
                 current['outcome'] = event['outcome']
             for task, receipt in completed_receipts(event):
                 price = receipt.get('price')
                 if type(price) not in (int, float) or current.get('last_offer') is None:
+                    continue
+                if task.get('id') != current.get('last_offer_task') or not current.get('shop_name'):
+                    uncorrelated.append(dict(line=number, event='completed_receipt', reason='ambiguous task or shop'))
                     continue
                 if price != current['last_offer'] or price > current['budget'] or receipt.get('item') != current['item']:
                     incident = dict(order=current['order'], shop_name=current.get('shop_name'),
@@ -144,7 +153,8 @@ def scan(source):
             by_item=by_item)
     return dict(source=str(source), source_sha256=digest.hexdigest(), bytes=offset, lines=number,
                 registrations=registrations, orders=orders, incidents=incidents, avoidance=avoidance,
-                seller_tasks=list(sellers.values()), seller_stats=stats, first_promotion=first_promotion)
+                seller_tasks=list(sellers.values()), seller_stats=stats, first_promotion=first_promotion,
+                uncorrelated_events=uncorrelated)
 
 
 def excerpt(source, destination, start, end):
@@ -157,8 +167,10 @@ def excerpt(source, destination, start, end):
                 sha256=hashlib.sha256(raw).hexdigest())
 
 
-def collect(source):
-    out = ROOT / 'logs' / 'historical'
+def collect(source, label='historical'):
+    if re.fullmatch(r'[a-z0-9-]+', label) is None:
+        raise ValueError('Use a simple new evidence label')
+    out = ROOT / 'logs' / label
     if (out / 'analysis.json').exists():
         raise FileExistsError('Evidence already exists; do not overwrite an analysis')
     before = source.stat()
@@ -174,7 +186,7 @@ def collect(source):
     exports.append(excerpt(source, ROOT / 'logs/market-kit.log', 0, prefix_end))
     for index, incident in enumerate(data['incidents'][:5], 1):
         order = next(o for o in data['orders'] if o['order'] == incident['order'])
-        exports.append(excerpt(source, ROOT / 'logs/challenge-2' / ('real-incident-%02d.log' % index),
+        exports.append(excerpt(source, ROOT / 'logs/challenge-2' / ('%s-incident-%02d.log' % (label, index)),
                                order['byte_start'], order['byte_end']))
     wanted = {n for a in data['avoidance'][:3] for n in (a['decision_line'], a['choice_line'])}
     for phase in ('before', 'after'):
@@ -213,4 +225,6 @@ def collect(source):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', type=Path, default=OLD / 'logs/market-kit.log')
-    collect(parser.parse_args().source)
+    parser.add_argument('--label', default='historical')
+    args = parser.parse_args()
+    collect(args.source, args.label)

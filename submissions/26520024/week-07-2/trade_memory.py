@@ -16,6 +16,9 @@ class TradeMemory:
             item TEXT NOT NULL, budget INTEGER NOT NULL, outcome TEXT NOT NULL,
             price REAL, evidence TEXT NOT NULL)''')
         self.db.execute('CREATE INDEX IF NOT EXISTS shop_trades ON trades(shop_name, time)')
+        self.db.execute('''CREATE TABLE IF NOT EXISTS observations (
+            id TEXT PRIMARY KEY, time TEXT NOT NULL, shop_name TEXT NOT NULL,
+            evidence TEXT NOT NULL)''')
         self.db.commit()
 
     def close(self):
@@ -45,8 +48,26 @@ class TradeMemory:
                         outcome=row['outcome'], price=row['price'],
                         review=evidence['feedback']['review'][:400])
         matching = [compact(row) for row in rows if row['item'] == item][:3]
+        observed = self.db.execute('SELECT * FROM observations WHERE shop_name=? ORDER BY time DESC LIMIT 3',
+                                   (shop_name,)).fetchall()
         return dict(window='latest 30 personal trades at this named shop', counts=counts,
-                    recent=[compact(row) for row in rows[:5]], same_item=matching)
+                    recent=[compact(row) for row in rows[:5]], same_item=matching,
+                    verified_historical_observations=[dict(time=r['time'], **json.loads(r['evidence']))
+                                                      for r in observed])
+
+    def record_observation(self, identity, observed_at, shop_name, evidence):
+        if not all(isinstance(v, str) and v for v in (identity, observed_at, shop_name)):
+            raise ValueError('Observation identity, timestamp and shop name are required')
+        stamp = datetime.fromisoformat(observed_at)
+        if stamp.tzinfo is None:
+            raise ValueError('Historical observations require a timezone')
+        encoded = json.dumps(evidence, ensure_ascii=False, allow_nan=False)
+        existing = self.db.execute('SELECT time,shop_name,evidence FROM observations WHERE id=?', (identity,)).fetchone()
+        if existing is not None and tuple(existing) != (observed_at, shop_name, encoded):
+            raise ValueError('An existing observation cannot be changed')
+        with self.db:
+            self.db.execute('INSERT OR IGNORE INTO observations VALUES (?,?,?,?)',
+                            (identity, observed_at, shop_name, encoded))
 
     def __enter__(self):
         return self

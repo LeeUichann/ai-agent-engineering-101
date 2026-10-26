@@ -25,7 +25,8 @@ def main(phase='lab1'):
             target = previous / source.relative_to(ROOT)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
-    sources = list(ROOT.glob('*.py')) + [ROOT / 'agent.json', REPO / 'scripts/market_test_week07.py']
+    sources = list(ROOT.glob('*.py')) + [ROOT / 'agent.json', ROOT / 'pricing_policy.json',
+                                        ROOT / 'catalog.json', REPO / 'scripts/market_test_week07.py']
     manifest = {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
     (out / 'source-hashes.json').write_text(json.dumps(manifest, indent=2) + '\n')
     env = dict(os.environ, MARKET_MEMORY_PATH=str(out / 'test-memory.sqlite3'))

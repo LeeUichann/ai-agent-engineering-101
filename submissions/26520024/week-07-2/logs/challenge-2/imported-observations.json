@@ -1,0 +1,46 @@
+{
+  "prepared_at": "2026-10-26T05:59:49.399530+00:00",
+  "observations": [
+    {
+      "id": "0ca36e66ad87dfab38a427b3134a726c0a2d482c21935b6a2b4387fa35f5a118",
+      "time": "2026-10-20T11:14:02.790592+00:00",
+      "shop_name": "elm-street",
+      "evidence": {
+        "kind": "receipt_mismatch",
+        "item": "bookshelf",
+        "budget": 325,
+        "agreed_offer": 300,
+        "receipt_price": 345.0,
+        "task": "a507e267-8d1c-4df2-8c3c-dce401a5e649",
+        "source": "logs/challenge-2/historical-verified-incident-01.log",
+        "source_line": 470,
+        "excerpt_sha256": "84901d686d1dc2b116ab8993f6d135afefd0d38266bca459a3585a72bd038170",
+        "original_log_sha256": "e81c0a1d6f318b6c51dd1b455c83795175003a468203f2a5b58ff3bb35a99aa4"
+      }
+    },
+    {
+      "id": "97902eacb32b852f24916176399e61755758d393373f21be8921b5b63ac4bf4a",
+      "time": "2026-10-20T11:39:05.713394+00:00",
+      "shop_name": "maple-home",
+      "evidence": {
+        "kind": "receipt_mismatch",
+        "item": "bookshelf",
+        "budget": 270,
+        "agreed_offer": 270,
+        "receipt_price": 310.0,
+        "task": "eff7fcdb-7aef-4e0c-9806-6eae2968735c",
+        "source": "logs/challenge-2/historical-verified-incident-02.log",
+        "source_line": 3458,
+        "excerpt_sha256": "30b6f6c3338ce3fe0a0f0dcec9b89642a1d91274e1f6c4a6e62282d3c0fb4625",
+        "original_log_sha256": "e81c0a1d6f318b6c51dd1b455c83795175003a468203f2a5b58ff3bb35a99aa4"
+      }
+    }
+  ],
+  "existing_trade_rows": 4771,
+  "targets": {
+    "bookshelf": 269,
+    "chair": 184,
+    "lamp": 103
+  },
+  "original_memory_modified": false
+}

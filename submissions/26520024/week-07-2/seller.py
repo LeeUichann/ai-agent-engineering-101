@@ -20,12 +20,15 @@ from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 
 from core import Catalog, SELLER_PROMPT, decide, emit, last_price, validate_seller
 from rps_promotion import new_promotion, parse_move, is_game_request, resolve, invitation
+from pricing import load_policy, target_asks
 
 ROOT = Path(__file__).resolve().parent
 RECEIPT_FIELDS = ('shop', 'item', 'price', 'task')
 MARKET_SELLER_PROMPT = SELLER_PROMPT + '''
 Market pricing policy: opening asks must not exceed the supplied per-product opening_ceiling.
-Prefer a modest 5-10 percent markup, rather than an aggressive initial price.
+When historical_target_asks are supplied, start at that item's target: it is computed from
+our own prior accepted trades. It is not a guaranteed sale and it never overrides a reserve.
+Without a historical target, prefer a modest 5-10 percent markup.
 For an incoming offer at or above the reserve, prefer accepting and closing an honest deal.
 Never raise an asking price within a task. Honor any offer meeting your previous ask.
 If the first counteroffer is below reserve, promptly quote the reserve as your final minimum.
@@ -97,6 +100,7 @@ class Seller(AgentExecutor):
         if not isinstance(self.signing_key, Ed25519PrivateKey):
             raise ValueError('Ed25519 key required before starting the shop')
         self.states, self.locks = {}, {}
+        self.price_policy = load_policy(ROOT / 'pricing_policy.json')
 
     async def execute(self, context, event_queue):
         task = context.current_task
@@ -143,7 +147,8 @@ class Seller(AgentExecutor):
                          memory=previous['memory'] if previous else '',
                          recent=previous['recent'] if previous else [],
                          pricing_policy=dict(opening_ceiling={p['id']: opening_ceiling(p['reserve']) for p in candidates},
-                                             maximum_markup_percent=10, never_raise_ask=True))
+                                             maximum_markup_percent=10, never_raise_ask=True,
+                                             historical_target_asks=target_asks(candidates, self.price_policy)))
             emit('seller_retrieval', task_id=task.id, shop=self.name,
                  catalog_size=len(self.catalog.items), candidate_ids=[p['id'] for p in candidates],
                  candidate_bytes=len(json.dumps(candidates).encode()))
@@ -219,7 +224,7 @@ def build(port, shop_id=None, decision=decide, signing_key=None):
         name, description, skill = shop['name'], shop['description'], shop['description']
         tags.append(shop['category'])
     url = 'http://127.0.0.1:{}/'.format(port)
-    card = AgentCard(name=name, description=description, version='1.2.0',
+    card = AgentCard(name=name, description=description, version='1.3.0',
                      default_input_modes=['text/plain'], default_output_modes=['application/json', 'text/plain'],
                      capabilities=AgentCapabilities(streaming=False),
                      supported_interfaces=[AgentInterface(protocol_binding='JSONRPC', url=url, protocol_version='1.0')],
