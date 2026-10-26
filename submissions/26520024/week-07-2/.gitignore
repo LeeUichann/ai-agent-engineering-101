@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .venv/
+.venv
+.evidence/
 .runtime/
 .uv-cache/
 .run.lock
