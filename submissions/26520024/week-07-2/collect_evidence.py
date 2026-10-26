@@ -162,7 +162,11 @@ def excerpt(source, destination, start, end):
         stream.seek(start)
         raw = stream.read(end - start)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(raw)
+    if destination.exists():
+        if destination.read_bytes() != raw:
+            raise FileExistsError('Refusing to overwrite different evidence: ' + str(destination))
+    else:
+        destination.write_bytes(raw)
     return dict(path=str(destination.relative_to(ROOT)), byte_start=start, byte_end=end,
                 sha256=hashlib.sha256(raw).hexdigest())
 
@@ -183,7 +187,10 @@ def collect(source, label='historical'):
     with source.open('rb') as stream:
         prefix = stream.read(1024 * 1024)
     prefix_end = prefix.rfind(b'\n') + 1
-    exports.append(excerpt(source, ROOT / 'logs/market-kit.log', 0, prefix_end))
+    prefix_path = ROOT / 'logs/market-kit.log'
+    if prefix_path.exists() and prefix_path.read_bytes() != prefix[:prefix_end]:
+        prefix_path = out / 'source-prefix.log'
+    exports.append(excerpt(source, prefix_path, 0, prefix_end))
     for index, incident in enumerate(data['incidents'][:5], 1):
         order = next(o for o in data['orders'] if o['order'] == incident['order'])
         exports.append(excerpt(source, ROOT / 'logs/challenge-2' / ('%s-incident-%02d.log' % (label, index)),

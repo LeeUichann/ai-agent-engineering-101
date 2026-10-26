@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from collect_evidence import scan
+from collect_evidence import excerpt, scan
 from market_buyer import selection_state
 from prepare_history import HISTORY, ROOT, verified_observations
 from pricing import load_policy, target_asks
@@ -13,6 +13,15 @@ from trade_memory import TradeMemory
 
 
 class HistoricalEvidence(unittest.TestCase):
+    def test_excerpts_never_overwrite_a_different_log(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, target = Path(temp)/'source.log', Path(temp)/'target.log'
+            source.write_bytes(b'original\n')
+            target.write_bytes(b'live new log\n')
+            with self.assertRaises(FileExistsError):
+                excerpt(source, target, 0, 9)
+            self.assertEqual(target.read_bytes(), b'live new log\n')
+
     def test_actual_incidents_match_unmodified_excerpts(self):
         observations = verified_observations()
         self.assertEqual([r['shop_name'] for r in observations], ['elm-street', 'maple-home'])

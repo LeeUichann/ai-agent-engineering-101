@@ -1,0 +1,10 @@
+{
+  "status": "not_run_approval_required",
+  "record_type": "assistant_note_about_tool_rejection_not_program_output",
+  "command": "python replay_avoidance.py",
+  "destination": "OpenAI model service via authenticated Codex CLI",
+  "data": "Recorded candidate names, reviews, and verified historical receipt mismatch observations",
+  "reason": "Automatic review rejected external transmission without explicit approval for these data and destination.",
+  "execution_started": false,
+  "result": null
+}
