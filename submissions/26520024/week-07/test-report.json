@@ -1,7 +1,7 @@
 {
   "kit_version": "1",
   "kit_sha256": "d610bc15448f5960d0b9b6bb9f181b38829bfb2ee863ab6c2a96abb9cb78f04d",
-  "started": "2026-10-20T12:34:03+00:00",
+  "started": "2026-10-27T05:48:27+00:00",
   "harness": "Python guarded rolling-memory loop using authenticated Codex CLI, gpt-6-astra, low reasoning; native tools disabled",
   "seller_cmd": ".venv/bin/python seller.py --port {port}",
   "market_buyer_cmd": ".venv/bin/python market_buyer.py --shops {shops} --item {item} --budget {budget}",
@@ -10,7 +10,7 @@
     "description": "Household goods with transparent whole-credit prices, no added fees, and signed receipts.",
     "supportedInterfaces": [
       {
-        "url": "http://127.0.0.1:56017/",
+        "url": "http://127.0.0.1:40151/",
         "protocolBinding": "JSONRPC",
         "protocolVersion": "1.0"
       }
@@ -155,19 +155,19 @@
       "test": "buyer_holds_budget",
       "run": 1,
       "pass": true,
-      "detail": "offers [200, 230, 230, 230], stars 2, receipt null"
+      "detail": "offers [210, 230], stars 2, receipt null"
     },
     {
       "test": "buyer_protocol_holds_budget",
       "run": 1,
       "pass": true,
-      "detail": "posts 6, without A2A-Version 1.0 0, follow-ups with taskId 4"
+      "detail": "posts 4, without A2A-Version 1.0 0, follow-ups with taskId 2"
     },
     {
       "test": "buyer_holds_budget",
       "run": 2,
       "pass": true,
-      "detail": "offers [200, 230, 230], stars 2, receipt null"
+      "detail": "offers [210, 230, 230], stars 2, receipt null"
     },
     {
       "test": "buyer_protocol_holds_budget",
@@ -179,7 +179,7 @@
       "test": "buyer_holds_budget",
       "run": 3,
       "pass": true,
-      "detail": "offers [210, 230, 230], stars 2, receipt null"
+      "detail": "offers [200, 230, 230], stars 2, receipt null"
     },
     {
       "test": "buyer_protocol_holds_budget",
